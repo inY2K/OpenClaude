@@ -1,58 +1,76 @@
 #!/usr/bin/env node
+/**
+ * OpenClaude proxy entry point.
+ * Loads provider configuration from SQLite (~/.openclaude/config.db)
+ * and starts the model proxy.
+ *
+ * Usage:
+ *   node proxy/start-proxy.js                          # use default provider
+ *   node proxy/start-proxy.js --alias <alias>          # use specific provider
+ *   node proxy/start-proxy.js --port <port>            # custom port
+ *   node proxy/start-proxy.js --mode <alias>           # alias for --alias
+ */
+
 import { startModelProxy } from './model-proxy.js';
+import { getDefaultProvider, getProvider, getProviders, getModelForTier } from './db.js';
 
-const BACKEND_DEFS = {
-    deepseek: { url: 'https://api.deepseek.com/anthropic', keyEnv: 'DEEPSEEK_API_KEY' },
-    openrouter: { url: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY' },
-    fireworks: { url: 'https://api.fireworks.ai/inference/v1', keyEnv: 'FIREWORKS_API_KEY' },
-};
+const args = process.argv.slice(2);
+const get = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
 
-// Legacy mode: start-proxy.js <targetUrl> <apiKey> (used by deepclaude.sh/ps1)
-const targetUrl = process.argv[2] || process.env.CHEAPCLAUDE_TARGET_URL;
-const apiKey = process.argv[3] || process.env.CHEAPCLAUDE_API_KEY;
+const aliasArg  = get('--alias') || get('--mode');
+const portArg   = get('--port');
+const startPort = portArg ? parseInt(portArg, 10) : 3200;
 
-if (targetUrl && apiKey) {
-    // Legacy single-backend mode
-    const backends = {};
-    for (const [name, def] of Object.entries(BACKEND_DEFS)) {
-        const key = process.env[def.keyEnv];
-        if (key) backends[name] = { url: def.url, apiKey: key };
-    }
-    const hasBackends = Object.keys(backends).length > 0;
-
-    const { port } = await startModelProxy({
-        targetUrl,
-        apiKey,
-        backends: hasBackends ? backends : undefined,
-        defaultMode: hasBackends ? undefined : undefined,
-    });
-    console.log(port);
-} else {
-    // Standalone mode with live toggle
-    const backends = {};
-    for (const [name, def] of Object.entries(BACKEND_DEFS)) {
-        const key = process.env[def.keyEnv];
-        backends[name] = { url: def.url, apiKey: key || null };
-    }
-
-    const fallbackUrl = backends.deepseek?.url || 'https://api.deepseek.com/anthropic';
-    const fallbackKey = backends.deepseek?.apiKey || 'unused';
-
-    const args = process.argv.slice(2);
-    const modeFlag = args.indexOf('--mode');
-    const defaultMode = modeFlag >= 0 ? args[modeFlag + 1] : 'anthropic';
-    const portFlag = args.indexOf('--port');
-    const port = portFlag >= 0 ? parseInt(args[portFlag + 1], 10) : 3200;
-
-    const proxy = await startModelProxy({
-        targetUrl: fallbackUrl,
-        apiKey: fallbackKey,
-        startPort: port,
-        backends,
-        defaultMode,
-    });
-
-    console.log(`Proxy on :${proxy.port} (mode: ${defaultMode})`);
-    console.log(`Switch: curl -sX POST http://127.0.0.1:${proxy.port}/_proxy/mode -d backend=deepseek`);
-    console.log(`Status: curl -s http://127.0.0.1:${proxy.port}/_proxy/status`);
+function providerConfig(provider) {
+    const options = provider.options || {};
+    return {
+        targetUrl: provider.base_url,
+        apiKey: options.apiKey || null,
+        api_format: provider.api_type,
+        auth_type: options.auth_type || 'bearer',
+        options,
+    };
 }
+
+// Load provider from DB
+let provider = aliasArg ? getProvider(aliasArg) : getDefaultProvider();
+
+if (!provider) {
+    if (aliasArg) {
+        console.error(`[PROXY] Provider "${aliasArg}" not found in config.`);
+    } else {
+        console.error('[PROXY] No providers configured. Run: node setup.js');
+    }
+    process.exit(1);
+}
+
+// Build backends map (all other providers for live switching)
+const allProviders = getProviders();
+const backends = {};
+for (const p of allProviders) {
+    const config = providerConfig(p);
+    backends[p.alias] = {
+        base_url: config.targetUrl,
+        api_type: config.api_format,
+        options: config.options,
+    };
+}
+
+const config = providerConfig(provider);
+
+console.log(`[PROXY] Starting with provider: ${provider.name} (${provider.alias})`);
+console.log(`[PROXY] Format: ${config.api_format} | Auth: ${config.auth_type}`);
+console.log(`[PROXY] Endpoint: ${config.targetUrl}`);
+
+const { port } = await startModelProxy({
+    targetUrl:  config.targetUrl,
+    apiKey:     config.apiKey,
+    api_format: config.api_format,
+    auth_type:  config.auth_type,
+    startPort,
+    backends,
+    defaultMode: provider.alias,
+});
+
+// Output port on its own line — callers (openclaude.ps1 / .sh) read this
+console.log(port);

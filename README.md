@@ -1,326 +1,273 @@
-# deepclaude
+<div align="center">
 
-Use Claude Code's autonomous agent loop with **DeepSeek V4 Pro**, **OpenRouter**, or any Anthropic-compatible backend. Same UX, 17x cheaper.
+<img src="assets/banner.svg" width="100%" alt="OpenClaude — Use Claude Code with any LLM provider"/>
 
-![Remote control running DeepSeek V4 Pro in the browser](screenshots/remote-control-deepseek.png)
+<br/><br/>
 
-## What this does
+[![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-22d3ee?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-818cf8?style=for-the-badge&logo=windows&logoColor=white)](HOW_TO.md)
+[![Zero Dependencies](https://img.shields.io/badge/Zero%20Dependencies-✦-22d3ee?style=for-the-badge)](#-zero-dependencies)
 
-Claude Code is the best autonomous coding agent — but it costs $200/month with usage caps. DeepSeek V4 Pro scores 96.4% on LiveCodeBench and costs $0.87/M output tokens.
+<br/>
 
-**deepclaude** swaps the brain while keeping the body:
+### Use Claude Code with **any** LLM provider — OpenAI, DeepSeek, Ollama, Groq, or your own server.
+### Beautiful guided setup. No technical knowledge required.
 
-```
-Your terminal
-  +-- Claude Code CLI (tool loop, file editing, bash, git - unchanged)
-        +-- API calls -> DeepSeek V4 Pro ($0.87/M) instead of Anthropic ($15/M)
-```
+<br/>
 
-Everything works: file reading, editing, bash execution, subagent spawning, autonomous multi-step coding loops. The only difference is which model thinks.
+[**📖 Step-by-Step Guide**](HOW_TO.md) &nbsp;·&nbsp; [**⚡ Quick Start**](#-quick-start) &nbsp;·&nbsp; [**🌐 Providers**](#-supported-providers) &nbsp;·&nbsp; [**🔧 How It Works**](#-how-it-works)
 
-## Quick start (2 minutes)
+<br/>
 
-### 1. Get a DeepSeek API key
+</div>
 
-Sign up at [platform.deepseek.com](https://platform.deepseek.com), add $5 credit, copy your API key.
+---
 
-### 2. Set environment variables
+## 💡 What is OpenClaude?
 
-**Windows (PowerShell):**
-```powershell
-setx DEEPSEEK_API_KEY "sk-your-key-here"
-```
+[Claude Code](https://claude.ai/code) is Anthropic's AI coding assistant. It's incredibly powerful — but it only talks to Anthropic's own API by default.
 
-**macOS/Linux:**
-```bash
-echo 'export DEEPSEEK_API_KEY="sk-your-key-here"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 3. Install
-
-**Windows:**
-```powershell
-# Copy the script to a directory in your PATH
-Copy-Item deepclaude.ps1 "$env:USERPROFILE\.local\bin\deepclaude.ps1"
-
-# Or add the repo directory to PATH
-setx PATH "$env:PATH;C:\path\to\deepclaude"
-```
-
-**macOS/Linux:**
-```bash
-chmod +x deepclaude.sh
-sudo ln -s "$(pwd)/deepclaude.sh" /usr/local/bin/deepclaude
-```
-
-### 4. Use it
-
-```bash
-deepclaude                  # Launch Claude Code with DeepSeek V4 Pro
-deepclaude --status         # Show available backends and keys
-deepclaude --backend or     # Use OpenRouter (cheapest, $0.44/M input)
-deepclaude --backend fw     # Use Fireworks AI (fastest, US servers)
-deepclaude --backend anthropic  # Normal Claude Code (when you need Opus)
-deepclaude --cost           # Show pricing comparison
-deepclaude --benchmark      # Latency test across all providers
-deepclaude --switch ds      # Switch backend mid-session (no restart)
-```
-
-## How it works
-
-Claude Code reads these environment variables to determine where to send API calls:
-
-| Variable | What it does |
-|---|---|
-| `ANTHROPIC_BASE_URL` | API endpoint (default: api.anthropic.com) |
-| `ANTHROPIC_AUTH_TOKEN` | API key for the backend |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | Model name for Opus-tier tasks |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | Model name for Sonnet-tier tasks |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Model name for Haiku-tier (subagents) |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | Model for spawned subagents |
-
-**deepclaude** sets these per-session (not permanently), launches Claude Code, then restores your original settings on exit.
-
-## Supported backends
-
-| Backend | Flag | Input/M | Output/M | Servers | Notes |
-|---|---|---|---|---|---|
-| **DeepSeek** (default) | `--backend ds` | $0.44 | $0.87 | China | Auto context caching (120x cheaper on repeat turns) |
-| **OpenRouter** | `--backend or` | $0.44 | $0.87 | US | Cheapest, lowest latency from US/EU |
-| **Fireworks AI** | `--backend fw` | $1.74 | $3.48 | US | Fastest inference |
-| **Anthropic** | `--backend anthropic` | $3.00 | $15.00 | US | Original Claude Opus (for hard problems) |
-
-### Setup per backend
-
-**DeepSeek** (default - just needs `DEEPSEEK_API_KEY`):
-```bash
-setx DEEPSEEK_API_KEY "sk-..."           # Windows
-export DEEPSEEK_API_KEY="sk-..."         # macOS/Linux
-```
-
-**OpenRouter** (optional):
-```bash
-setx OPENROUTER_API_KEY "sk-or-..."      # Windows
-export OPENROUTER_API_KEY="sk-or-..."    # macOS/Linux
-```
-
-**Fireworks AI** (optional):
-```bash
-setx FIREWORKS_API_KEY "fw_..."          # Windows
-export FIREWORKS_API_KEY="fw_..."        # macOS/Linux
-```
-
-## Cost comparison
-
-| Usage level | Anthropic Max | deepclaude (DeepSeek) | Savings |
-|---|---|---|---|
-| Light (10 days/mo) | $200/mo (capped) | ~$20/mo | 90% |
-| Heavy (25 days/mo) | $200/mo (capped) | ~$50/mo | 75% |
-| With auto loops | $200/mo (capped) | ~$80/mo | 60% |
-
-DeepSeek's automatic context caching makes agent loops extremely cheap - after the first request, the system prompt and file context are cached at $0.004/M (vs $0.44/M uncached).
-
-## What works and what doesn't
-
-### Works
-- File reading, writing, editing (Read/Write/Edit tools)
-- Bash/PowerShell execution
-- Glob and Grep search
-- Multi-step autonomous tool loops
-- Subagent spawning
-- Git operations
-- Project initialization (`/init`)
-- Thinking mode (enabled by default)
-
-### Doesn't work or degraded
-| Feature | Reason |
-|---|---|
-| Image/vision input | DeepSeek's Anthropic endpoint doesn't support images |
-| Parallel tool use | Supported by DeepSeek (up to 128 per call), but Claude Code sends tools sequentially by default |
-| MCP server tools | Not supported through compatibility layer |
-| Prompt caching savings | DeepSeek has its own caching (automatic), but Anthropic's `cache_control` is ignored |
-
-### Intelligence difference
-- **Routine tasks** (80% of work): DeepSeek V4 Pro is comparable to Claude Opus
-- **Complex reasoning** (20%): Claude Opus is stronger - switch with `--backend anthropic`
-
-## Live switching (no restart)
-
-Switch between Anthropic and DeepSeek **mid-session** - from inside Claude Code itself. No restart, no terminal commands. Just type a slash command.
-
-**In Claude Code terminal:**
-
-![/deepseek in Claude Code CLI](screenshots/terminal%20for%20terminal%20embed2.PNG)
-
-**In Claude Code VS Code extension:**
-
-![/deepseek in VS Code extension](screenshots/terminal%20for%20vscode%20embed2.PNG)
-
-### How it works
-
-The proxy runs on `localhost:3200` and intercepts all API calls. A control endpoint (`/_proxy/mode`) lets you switch the active backend instantly:
+**OpenClaude changes that.** It's an intelligent local proxy that sits between Claude Code and *any* LLM provider you choose, translating API formats automatically in real time.
 
 ```
-Claude Code -> localhost:3200 (proxy)
-                 |
-                 +-- /_proxy/mode POST -> switch backend
-                 +-- /_proxy/status GET -> current backend + uptime
-                 +-- /_proxy/cost GET -> token usage + cost savings
-                 |
-                 +-- /v1/messages -> active backend (DeepSeek/OpenRouter/Anthropic)
-                 +-- everything else -> Anthropic (passthrough)
+  ┌──────────────────┐     ┌──────────────────────────────┐     ┌───────────────────────┐
+  │                  │     │                              │     │                       │
+  │   Claude Code    │────▶│      OpenClaude Proxy        │────▶│   Your LLM Provider   │
+  │   (unchanged)    │◀────│   Translates & routes APIs   │◀────│  (any compatible API) │
+  │                  │     │                              │     │                       │
+  └──────────────────┘     └──────────────────────────────┘     └───────────────────────┘
 ```
 
-### Option 1: Slash commands (recommended)
+Your Claude Code experience stays **exactly the same**. You just choose which brain powers it.
 
-Add these files to `~/.claude/commands/`:
+---
 
-**`deepseek.md`:**
-```
-Switch the model proxy to DeepSeek. Run this command silently and report the result:
-curl -sX POST http://127.0.0.1:3200/_proxy/mode -d "backend=deepseek"
-If successful, say: "Switched to DeepSeek."
-```
+## ⚡ Quick Start
 
-**`anthropic.md`:**
-```
-Switch the model proxy back to Anthropic. Run this command silently and report the result:
-curl -sX POST http://127.0.0.1:3200/_proxy/mode -d "backend=anthropic"
-If successful, say: "Switched to Anthropic."
-```
+> Takes about **2 minutes**. No technical knowledge required.
 
-**`openrouter.md`:**
-```
-Switch the model proxy to OpenRouter. Run this command silently and report the result:
-curl -sX POST http://127.0.0.1:3200/_proxy/mode -d "backend=openrouter"
-If successful, say: "Switched to OpenRouter."
+<details open>
+<summary><b>🪟 Windows</b></summary>
+
+```batch
+git clone https://github.com/inY2K/OpenClaude.git
+cd OpenClaude
+setup.bat
 ```
 
-Then type `/deepseek`, `/anthropic`, or `/openrouter` in any Claude Code session to switch instantly.
+The setup wizard opens automatically and walks you through everything.
+After setup, just type `openclaude` in any terminal to launch.
 
-### Option 2: CLI flag
+</details>
+
+<details open>
+<summary><b>🍎 macOS / 🐧 Linux</b></summary>
 
 ```bash
-deepclaude --switch deepseek    # or: ds, or, fw, anthropic
-deepclaude -s anthropic
+git clone https://github.com/inY2K/OpenClaude.git
+cd OpenClaude
+chmod +x setup.sh && ./setup.sh
 ```
 
-### Option 3: VS Code keyboard shortcuts
+The setup wizard opens automatically and walks you through everything.
+After setup, just type `openclaude` in any terminal to launch.
 
-Add to `.vscode/tasks.json`:
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Proxy: Switch to DeepSeek",
-      "type": "shell",
-      "command": "Invoke-RestMethod -Uri http://127.0.0.1:3200/_proxy/mode -Method Post -Body 'backend=deepseek'",
-      "presentation": { "reveal": "always" },
-      "problemMatcher": []
-    },
-    {
-      "label": "Proxy: Switch to Anthropic",
-      "type": "shell",
-      "command": "Invoke-RestMethod -Uri http://127.0.0.1:3200/_proxy/mode -Method Post -Body 'backend=anthropic'",
-      "presentation": { "reveal": "always" },
-      "problemMatcher": []
-    }
-  ]
-}
+</details>
+
+> 📖 **Need more detail?** The [**HOW_TO.md**](HOW_TO.md) guide covers every step, every provider, and every common question — with clear screenshots descriptions.
+
+---
+
+## ✨ Features
+
+<br/>
+
+| Feature | Description |
+|---------|-------------|
+| 🌐 **Any Provider** | OpenAI, DeepSeek, Groq, Together AI, OpenRouter, Fireworks, Anthropic, or any compatible endpoint |
+| 🏠 **Local Models** | Run Ollama or LM Studio on your own machine — zero API cost, fully private |
+| 🔄 **Live Switching** | Switch providers mid-session without restarting Claude Code |
+| 🎛️ **Per-Tier Models** | Assign different models to Opus / Sonnet / Haiku / Subagent tiers |
+| 💾 **Saved Config** | All settings stored in `~/.openclaude/config.db` — set once, use forever |
+| ✦ **Zero Dependencies** | Uses only Node.js built-ins — no `npm install`, no compilation |
+| 🔓 **No Lock-in** | Switch providers any time; your config lives on your machine |
+| 🎨 **Friendly Wizard** | Colourful guided setup with presets — if grandma can use a phone, she can use this |
+
+---
+
+## 🌐 Supported Providers
+
+OpenClaude works with **any** provider that speaks either of these two formats:
+
+| Format | How it works |
+|--------|-------------|
+| **Anthropic-compatible** | Provider already speaks the Anthropic API — direct passthrough, zero overhead |
+| **OpenAI-compatible** | OpenClaude translates Anthropic ↔ OpenAI formats automatically, including tool use |
+
+### Built-in Presets
+
+| Provider | Type | API Key? | Great for |
+|----------|------|----------|-----------|
+| **OpenAI** | OpenAI-compat | Yes | GPT-4o, o3, o1-mini… |
+| **DeepSeek** | Anthropic-compat | Yes | Very low cost, high quality |
+| **OpenRouter** | Anthropic-compat | Yes | 300+ models, one key |
+| **Fireworks AI** | Anthropic-compat | Yes | Fast US-based inference |
+| **Ollama** | OpenAI-compat | No — free | Llama, Mistral, Gemma locally |
+| **LM Studio** | OpenAI-compat | No — free | Local models with a GUI |
+| **Custom** | Your choice | Optional | Any URL, any format |
+
+> Works with **Groq**, **Together AI**, **Mistral**, **Cohere**, **Perplexity**, **Anyscale**, and any other OpenAI-compatible service.
+
+---
+
+## 🎛️ Model Tiers Explained
+
+Claude Code uses four internal "tiers" to pick which model to call. OpenClaude lets you assign any model to each tier:
+
+| Tier | What Claude Code uses it for |
+|------|------------------------------|
+| **Opus** | Complex tasks, long reasoning chains |
+| **Sonnet** | Everyday balanced work |
+| **Haiku** | Quick, lightweight tasks |
+| **Subagent** | Background agents spawned automatically |
+
+During setup you can either:
+- **Pick one model for everything** (simplest — great for beginners)
+- **Mix and match per tier** (e.g. powerful model for Opus, fast cheap model for Haiku)
+
+---
+
+## 🔧 How It Works
+
+```
+ You run:  openclaude
+
+   1. Reads your saved provider config from ~/.openclaude/config.db
+   2. Starts a local proxy on 127.0.0.1:3200 (invisible to you)
+   3. Sets Claude Code's env vars to point at the proxy
+   4. Launches Claude Code — works exactly as normal
+   5. Proxy translates API formats on the fly (OpenAI ↔ Anthropic)
+   6. When you exit Claude Code, the proxy stops automatically
 ```
 
-Then bind in `keybindings.json`:
-```json
-{ "key": "ctrl+alt+d", "command": "workbench.action.tasks.runTask", "args": "Proxy: Switch to DeepSeek" },
-{ "key": "ctrl+alt+a", "command": "workbench.action.tasks.runTask", "args": "Proxy: Switch to Anthropic" }
-```
+**For Anthropic-compatible providers** (DeepSeek, OpenRouter, etc.):
+OpenClaude connects directly — no proxy overhead, maximum speed.
 
-### Cost tracking
+**For OpenAI-compatible providers** (OpenAI, Ollama, LM Studio, etc.):
+The proxy intercepts each request, translates it to OpenAI format, sends it, then translates the response back — including streaming and tool use.
 
-The proxy tracks token usage and calculates savings vs Anthropic pricing:
+---
+
+## 📟 All Commands
 
 ```bash
-curl -s http://127.0.0.1:3200/_proxy/cost
+# ── Launch ──────────────────────────────────────────────
+openclaude                       # Launch with your default provider
+openclaude --switch openai       # Launch with a specific saved provider
+
+# ── Manage Providers ────────────────────────────────────
+openclaude --setup               # Open the provider wizard (add / edit / delete)
+openclaude --list                # Show all your saved providers
+openclaude --status              # Show proxy status and active provider
+
+# ── Advanced ────────────────────────────────────────────
+openclaude --remote              # Remote control mode (browser-based session)
+openclaude --remote --switch or  # Remote control with a specific provider
+openclaude --help                # Show all options
 ```
 
-Returns:
-```json
-{
-  "backends": {
-    "deepseek": {
-      "input_tokens": 125000,
-      "output_tokens": 45000,
-      "requests": 12,
-      "cost": 0.0941,
-      "anthropic_equivalent": 1.05
-    }
-  },
-  "total_cost": 0.0941,
-  "anthropic_equivalent": 1.05,
-  "savings": 0.9559
-}
+### Live-switch while running
+
+Open a second terminal while `openclaude` is already running:
+
+```bash
+openclaude --switch openai       # Switch to OpenAI without restarting
+openclaude --switch local        # Switch to local Ollama
+openclaude --switch ds           # Switch to DeepSeek
 ```
 
-## VS Code / Cursor integration
+### Switch from inside Claude Code (slash commands)
 
-Add terminal profiles so you can launch deepclaude from the IDE:
+Add these files to `~/.claude/commands/` and use them as `/switch-openai` etc. inside Claude Code:
 
-**Settings > JSON:**
-```json
-{
-  "terminal.integrated.profiles.windows": {
-    "DeepSeek Agent": {
-      "path": "powershell.exe",
-      "args": ["-ExecutionPolicy", "Bypass", "-NoExit", "-File", "C:\\path\\to\\deepclaude.ps1"]
-    }
+**`~/.claude/commands/switch-openai.md`:**
+```
+Switch the model proxy to OpenAI. Run silently:
+curl -sX POST http://127.0.0.1:3200/_proxy/mode -d "backend=openai"
+Then confirm: "Switched to OpenAI."
+```
+
+---
+
+## 🔌 VS Code Integration
+
+Add a terminal profile to launch OpenClaude from inside VS Code:
+
+**Settings → Open Settings (JSON):**
+
+```jsonc
+// Windows
+"terminal.integrated.profiles.windows": {
+  "OpenClaude": {
+    "path": "powershell.exe",
+    "args": ["-ExecutionPolicy", "Bypass", "-NoExit", "-File", "C:\\path\\to\\OpenClaude\\openclaude.ps1"]
   }
 }
-```
 
-Or on macOS/Linux:
-```json
-{
-  "terminal.integrated.profiles.linux": {
-    "DeepSeek Agent": {
-      "path": "/usr/local/bin/deepclaude"
-    }
-  }
+// macOS / Linux
+"terminal.integrated.profiles.linux": {
+  "OpenClaude": { "path": "/usr/local/bin/openclaude" }
 }
 ```
 
-## Remote control (`--remote`)
+---
 
-Open a Claude Code session in any browser - with DeepSeek as the brain:
+## ✦ Zero Dependencies
 
-```bash
-deepclaude --remote                # Remote control + DeepSeek
-deepclaude --remote -b or          # Remote control + OpenRouter
-deepclaude --remote -b anthropic   # Remote control + Anthropic (normal)
-```
+OpenClaude uses **only Node.js built-in modules** — no external packages, no `npm install`, no native compilation:
 
-This prints a `https://claude.ai/code/session_...` URL you can open on your phone, tablet, or any browser.
+| Module | Used for |
+|--------|----------|
+| `node:sqlite` | Saving your provider config (built into Node.js 22+) |
+| `node:http` / `node:https` | The local proxy server |
+| `node:readline` | The colourful setup wizard |
+| `node:stream` | Streaming API responses |
 
-### How it works
+Just clone the repo and run. That's it.
 
-Remote control needs Anthropic's bridge for the WebSocket connection, but model calls can go elsewhere. deepclaude starts a local proxy that splits the traffic:
+---
 
-```
-claude remote-control
-  +-- Bridge WebSocket -> wss://bridge.claudeusercontent.com (Anthropic, hardcoded)
-  +-- Model API calls  -> http://localhost:3200 (proxy)
-                            +-- /v1/messages -> DeepSeek ($0.87/M)
-                            +-- everything else -> Anthropic (passthrough)
-```
+## 📖 Documentation
 
-### Prerequisites
-- Must be logged into Claude Code: `claude auth login`
-- Must have a claude.ai subscription (the bridge is Anthropic infrastructure)
-- Node.js 18+ (for the proxy)
+| Document | What's inside |
+|----------|--------------|
+| [**HOW_TO.md**](HOW_TO.md) | Complete guide: setup, providers, troubleshooting, FAQ |
+| [**proxy/README.md**](proxy/README.md) | Technical proxy docs: API endpoints, format translation, advanced use |
 
-The proxy starts automatically and stops when the session ends. See [proxy/README.md](proxy/README.md) for technical details.
+---
 
-## License
+## 🤝 Contributing
 
-MIT
+Pull requests are welcome! OpenClaude is intentionally minimal. Please keep contributions:
+- Dependency-free (Node.js built-ins only)
+- Focused on a single clear improvement
+- Compatible with Node.js 22+
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) — use it, fork it, build on it freely.
+
+---
+
+<div align="center">
+<br/>
+<img src="assets/logo.svg" width="72" alt="OpenClaude Logo"/>
+<br/><br/>
+
+**OpenClaude — Your AI, Your Rules, Your Provider.**
+
+<br/>
+</div>

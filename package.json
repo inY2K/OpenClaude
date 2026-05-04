@@ -1,0 +1,11 @@
+{
+  "name": "openclaude",
+  "version": "1.0.0",
+  "description": "Use Claude Code with any LLM provider",
+  "type": "module",
+  "scripts": {
+    "setup": "node setup.js",
+    "proxy": "node proxy/start-proxy.js",
+    "test": "node --test"
+  }
+}

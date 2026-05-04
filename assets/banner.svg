@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" width="1200" height="280">
+  <defs>
+    <linearGradient id="bgBanner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080c14"/>
+      <stop offset="60%" stop-color="#0d1320"/>
+      <stop offset="100%" stop-color="#110a1f"/>
+    </linearGradient>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="gradV" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#e9d5ff"/>
+    </linearGradient>
+    <linearGradient id="hubFillB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.10"/>
+    </linearGradient>
+    <filter id="glowB" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="titleGlow" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="taglineGlow" x="-5%" y="-30%" width="110%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="bannerClip">
+      <rect width="1200" height="280" rx="20"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="280" rx="20" fill="url(#bgBanner)"/>
+
+  <!-- Subtle grid -->
+  <g clip-path="url(#bannerClip)" opacity="0.03" stroke="#ffffff" stroke-width="0.6">
+    <line x1="200"  y1="0" x2="200"  y2="280"/>
+    <line x1="400"  y1="0" x2="400"  y2="280"/>
+    <line x1="600"  y1="0" x2="600"  y2="280"/>
+    <line x1="800"  y1="0" x2="800"  y2="280"/>
+    <line x1="1000" y1="0" x2="1000" y2="280"/>
+    <line x1="0" y1="70"  x2="1200" y2="70"/>
+    <line x1="0" y1="140" x2="1200" y2="140"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+  </g>
+
+  <!-- Left gradient fade for logo area -->
+  <rect x="0" y="0" width="340" height="280" fill="url(#hubFillB)" rx="20"/>
+
+  <!-- ── Mini Logo (left side) ── -->
+  <!-- Outer ring -->
+  <circle cx="155" cy="140" r="108" fill="none" stroke="url(#grad)" stroke-width="0.8" opacity="0.2"/>
+  <!-- Provider nodes -->
+  <circle cx="155" cy="34"  r="6"  fill="url(#grad)" filter="url(#glowB)"/>
+  <circle cx="235" cy="60"  r="4.5" fill="url(#grad)" filter="url(#glowB)" opacity="0.8"/>
+  <circle cx="263" cy="140" r="6"  fill="url(#grad)" filter="url(#glowB)"/>
+  <circle cx="235" cy="220" r="4.5" fill="url(#grad)" filter="url(#glowB)" opacity="0.8"/>
+  <circle cx="155" cy="246" r="6"  fill="url(#grad)" filter="url(#glowB)"/>
+  <circle cx="75"  cy="220" r="4.5" fill="url(#grad)" filter="url(#glowB)" opacity="0.8"/>
+  <circle cx="47"  cy="140" r="6"  fill="url(#grad)" filter="url(#glowB)"/>
+  <circle cx="75"  cy="60"  r="4.5" fill="url(#grad)" filter="url(#glowB)" opacity="0.8"/>
+  <!-- Spokes -->
+  <g stroke="url(#grad)" stroke-width="1" opacity="0.3">
+    <line x1="155" y1="34"  x2="155" y2="80"/>
+    <line x1="235" y1="60"  x2="202" y2="84"/>
+    <line x1="263" y1="140" x2="217" y2="140"/>
+    <line x1="235" y1="220" x2="202" y2="196"/>
+    <line x1="155" y1="246" x2="155" y2="200"/>
+    <line x1="75"  y1="220" x2="108" y2="196"/>
+    <line x1="47"  y1="140" x2="93"  y2="140"/>
+    <line x1="75"  y1="60"  x2="108" y2="84"/>
+  </g>
+  <!-- Hub -->
+  <circle cx="155" cy="140" r="62" fill="url(#hubFillB)"/>
+  <circle cx="155" cy="140" r="62" fill="none" stroke="url(#grad)" stroke-width="2" filter="url(#glowB)"/>
+  <!-- OC in hub -->
+  <text x="155" y="163" font-family="'Arial Black',Arial,sans-serif" font-size="56" font-weight="900"
+        fill="url(#grad)" text-anchor="middle" filter="url(#glowB)" letter-spacing="-4">OC</text>
+
+  <!-- Vertical separator -->
+  <line x1="300" y1="40" x2="300" y2="240" stroke="url(#gradV)" stroke-width="1" opacity="0.25"/>
+
+  <!-- ── Text block (right of logo) ── -->
+
+  <!-- "OpenClaude" title -->
+  <text x="348" y="118"
+    font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+    font-size="76"
+    font-weight="900"
+    fill="url(#grad)"
+    filter="url(#titleGlow)"
+    letter-spacing="-3"
+  >OpenClaude</text>
+
+  <!-- Tagline -->
+  <text x="351" y="158"
+    font-family="'Helvetica Neue',Arial,sans-serif"
+    font-size="22"
+    fill="url(#textGrad)"
+    opacity="0.85"
+    letter-spacing="0.5"
+  >Use Claude Code with any LLM provider</text>
+
+  <!-- Sub-badges row -->
+  <!-- Badge 1: Any Provider -->
+  <rect x="351" y="178" width="152" height="30" rx="8" fill="#22d3ee" fill-opacity="0.12" stroke="#22d3ee" stroke-width="0.8" stroke-opacity="0.5"/>
+  <text x="427" y="198" font-family="Arial,sans-serif" font-size="13" fill="#22d3ee" text-anchor="middle" font-weight="600">⚡ Any Provider</text>
+  <!-- Badge 2: Zero Dependencies -->
+  <rect x="513" y="178" width="180" height="30" rx="8" fill="#818cf8" fill-opacity="0.12" stroke="#818cf8" stroke-width="0.8" stroke-opacity="0.5"/>
+  <text x="603" y="198" font-family="Arial,sans-serif" font-size="13" fill="#818cf8" text-anchor="middle" font-weight="600">✦ Zero Dependencies</text>
+  <!-- Badge 3: No Vendor Lock-in -->
+  <rect x="703" y="178" width="180" height="30" rx="8" fill="#a855f7" fill-opacity="0.12" stroke="#a855f7" stroke-width="0.8" stroke-opacity="0.5"/>
+  <text x="793" y="198" font-family="Arial,sans-serif" font-size="13" fill="#a855f7" text-anchor="middle" font-weight="600">🔓 No Lock-in</text>
+
+  <!-- Bottom accent line -->
+  <rect x="0" y="273" width="1200" height="7" rx="0" fill="url(#grad)" opacity="0.7"/>
+</svg>
