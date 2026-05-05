@@ -330,6 +330,10 @@ Pull requests are welcome! OpenClaude is intentionally minimal. Please keep cont
 <img src="assets/logo.svg" width="72" alt="OpenClaude Logo"/>
 <br/><br/>
 
+[![GitHub Page](https://img.shields.io/badge/GitHub%20Page-Live-7c3aed?style=for-the-badge&logo=githubpages&logoColor=white)](https://iny2k.github.io/)
+
+<br/><br/>
+
 **OpenClaude — Your AI, Your Rules, Your Provider.**
 
 <br/>
