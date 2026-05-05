@@ -11,7 +11,6 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Helpers
 # --------------------------------------------------------------------------
 function Write-Banner {
-    Clear-Host
     Write-Host ""
     Write-Host "  ============================================================" -ForegroundColor Cyan
     Write-Host "                  O P E N C L A U D E" -ForegroundColor Cyan
@@ -73,6 +72,28 @@ function Start-Provider($alias) {
     }
 }
 
+function Run-SetupWizard {
+    Write-Host ""
+    Write-Host "  Opening setup wizard..." -ForegroundColor Cyan
+
+    $command = "Set-Location -LiteralPath '$($ScriptDir.Replace("'", "''"))'; node .\setup.js"
+    $proc = Start-Process -FilePath "powershell" `
+        -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", $command) `
+        -PassThru
+
+    $proc.WaitForExit()
+
+    if ($proc.ExitCode -ne 0) {
+        Write-Host ""
+        Write-Host "  Setup exited with error code $($proc.ExitCode)." -ForegroundColor Red
+        Write-Host "  Please review the setup window output and try again." -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "  Press Enter to return to menu"
+        return $false
+    }
+    return $true
+}
+
 # --------------------------------------------------------------------------
 # Main loop
 # --------------------------------------------------------------------------
@@ -91,7 +112,7 @@ while ($true) {
         Write-Host ""
         Write-Divider
         Write-Host ""
-        & node "$ScriptDir\setup.js"
+        [void](Run-SetupWizard)
         Write-Host ""
 
         $info = Get-SetupInfo
@@ -137,8 +158,7 @@ while ($true) {
     }
 
     if ($choice -ieq "a") {
-        Write-Host ""
-        & node "$ScriptDir\setup.js"
+        [void](Run-SetupWizard)
         continue
     }
 
@@ -169,13 +189,33 @@ while ($true) {
                     $tmp = [System.IO.Path]::GetTempFileName() + ".mjs"
                     $scriptContent = @"
 import { getProvider, saveProvider } from '$dbUrl';
+import { probeProvider } from 'file:///$($ScriptDir -replace '\\', '/')/proxy/provider-probe.js';
 const p = getProvider('$($target.alias)');
 const models = p.models.reduce((o, m) => { o[m.tier] = m.model_id; return o; }, {});
-console.log(JSON.stringify(models));
+let discovered = [];
+try {
+  const probe = await probeProvider({
+    baseUrl: p.base_url,
+    apiType: p.api_type,
+    authType: p.options?.auth_type || 'bearer',
+    apiKey: p.options?.apiKey || '',
+  });
+  discovered = Array.isArray(probe?.models) ? probe.models : [];
+} catch {}
+console.log(JSON.stringify({ models, discovered }));
 "@
                     Set-Content $tmp $scriptContent -Encoding UTF8
-                    $currentModels = & node $tmp 2>$null | ConvertFrom-Json
+                    $modelInfo = & node $tmp 2>$null | ConvertFrom-Json
                     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+
+                    if ($null -eq $modelInfo) {
+                        Write-Host "  Could not load model information." -ForegroundColor Yellow
+                        continue
+                    }
+
+                    $currentModels = $modelInfo.models
+                    $discoveredModels = @()
+                    if ($modelInfo.discovered) { $discoveredModels = @($modelInfo.discovered) }
 
                     Write-Host ""
                     Write-Host "  Current models:" -ForegroundColor Yellow
@@ -184,13 +224,40 @@ console.log(JSON.stringify(models));
                     }
                     Write-Host ""
 
-                    $newModel = Read-Host "  Enter new model name (or leave blank to skip)"
+                    if ($discoveredModels.Count -gt 0) {
+                        Write-Host "  Discovered models:" -ForegroundColor Yellow
+                        $limit = [Math]::Min(20, $discoveredModels.Count)
+                        for ($i = 0; $i -lt $limit; $i++) {
+                            Write-Host "    [$($i+1)] $($discoveredModels[$i])" -ForegroundColor White
+                        }
+                        if ($discoveredModels.Count -gt $limit) {
+                            Write-Host "    ...and $($discoveredModels.Count - $limit) more" -ForegroundColor DarkGray
+                        }
+                        Write-Host ""
+                    }
+
+                    $newModelInput = Read-Host "  Enter new model name or list number (or leave blank to skip)"
+                    $newModel = $null
+                    if ($newModelInput) {
+                        if ($newModelInput -match '^\d+$' -and $discoveredModels.Count -gt 0) {
+                            $modelIdx = [int]$newModelInput - 1
+                            if ($modelIdx -ge 0 -and $modelIdx -lt $discoveredModels.Count) {
+                                $newModel = $discoveredModels[$modelIdx]
+                            } else {
+                                Write-Host "  Invalid model number." -ForegroundColor Yellow
+                            }
+                        } else {
+                            $newModel = $newModelInput
+                        }
+                    }
+
                     if ($newModel) {
+                        $newModelEscaped = ($newModel -replace '\\', '\\\\') -replace "'", "\\'"
                         $tmp = [System.IO.Path]::GetTempFileName() + ".mjs"
                         $scriptContent = @"
 import { getProvider, saveProvider } from '$dbUrl';
 const p = getProvider('$($target.alias)');
-const models = p.models.map(m => ({ ...m, model_id: '$newModel', name: '$newModel' }));
+const models = p.models.map(m => ({ ...m, model_id: '$newModelEscaped', name: '$newModelEscaped' }));
 saveProvider({ ...p, models });
 console.log('updated');
 "@
@@ -274,8 +341,7 @@ console.log('updated');
     }
 
     if ($choice -ieq "s") {
-        Write-Host ""
-        & node "$ScriptDir\setup.js"
+        [void](Run-SetupWizard)
         continue
     }
 

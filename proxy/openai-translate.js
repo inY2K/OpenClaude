@@ -18,6 +18,17 @@ function debugLog(msg) {
 export function anthropicToOpenAI(body) {
     const req = JSON.parse(body.toString());
 
+    const cleanedStops = (() => {
+        const fromStopSequences = Array.isArray(req.stop_sequences)
+            ? req.stop_sequences
+            : [];
+        const fromStop = Array.isArray(req.stop)
+            ? req.stop
+            : (typeof req.stop === 'string' ? [req.stop] : []);
+        return [...fromStopSequences, ...fromStop]
+            .filter(s => typeof s === 'string' && s.length > 0);
+    })();
+
     const messages = [];
 
     if (req.system) {
@@ -40,6 +51,7 @@ export function anthropicToOpenAI(body) {
         ...(req.max_tokens && { max_tokens: req.max_tokens }),
         ...(req.temperature !== undefined && { temperature: req.temperature }),
         ...(req.top_p !== undefined && { top_p: req.top_p }),
+        ...(cleanedStops.length > 0 && { stop: cleanedStops }),
     };
 
     if (req.tools?.length) {
@@ -92,17 +104,6 @@ function convertMessage(msg) {
 
         const results = [];
 
-        if (others.length) {
-            results.push({
-                role: 'user',
-                content: others.map(b => {
-                    if (b.type === 'text') return { type: 'text', text: b.text };
-                    if (b.type === 'image') return { type: 'image_url', image_url: { url: b.source?.url || '' } };
-                    return { type: 'text', text: JSON.stringify(b) };
-                }),
-            });
-        }
-
         for (const tr of toolResults) {
             results.push({
                 role: 'tool',
@@ -112,6 +113,17 @@ function convertMessage(msg) {
                     : Array.isArray(tr.content)
                         ? tr.content.map(b => b.text || '').join('')
                         : JSON.stringify(tr.content),
+            });
+        }
+
+        if (others.length) {
+            results.push({
+                role: 'user',
+                content: others.map(b => {
+                    if (b.type === 'text') return { type: 'text', text: b.text };
+                    if (b.type === 'image') return { type: 'image_url', image_url: { url: b.source?.url || '' } };
+                    return { type: 'text', text: JSON.stringify(b) };
+                }),
             });
         }
 
@@ -158,6 +170,7 @@ export class OpenAIToAnthropicStream extends Transform {
         this._inputTokens = 0;
         this._outputTokens = 0;
         this._msgId = `msg_${Date.now()}`;
+        this._finalized = false;
     }
 
     _transform(chunk, _enc, cb) {
@@ -170,6 +183,9 @@ export class OpenAIToAnthropicStream extends Transform {
 
     _flush(cb) {
         if (this._buf.trim()) this._processEvent(this._buf);
+        // Some OpenAI-compatible providers terminate SSE without sending [DONE].
+        // Ensure Claude always receives the closing Anthropic events.
+        if (this._started && !this._finalized) this._finalize();
         if (this._onUsage) this._onUsage(this._inputTokens, this._outputTokens);
         cb();
     }
@@ -276,6 +292,9 @@ export class OpenAIToAnthropicStream extends Transform {
     }
 
     _finalize() {
+        if (this._finalized) return;
+        this._finalized = true;
+
         if (this._textBlockStarted) {
             this._emit('content_block_stop', { type: 'content_block_stop', index: 0 });
         }
@@ -290,7 +309,10 @@ export class OpenAIToAnthropicStream extends Transform {
         this._emit('message_delta', {
             type: 'message_delta',
             delta: { stop_reason: stopReason, stop_sequence: null },
-            usage: { output_tokens: this._outputTokens },
+            usage: {
+                input_tokens: this._inputTokens,
+                output_tokens: this._outputTokens,
+            },
         });
         this._emit('message_stop', { type: 'message_stop' });
     }

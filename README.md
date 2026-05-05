@@ -16,7 +16,7 @@
 
 <br/>
 
-[**📖 Step-by-Step Guide**](HOW_TO.md) &nbsp;·&nbsp; [**⚡ Quick Start**](#-quick-start) &nbsp;·&nbsp; [**🌐 Providers**](#-supported-providers) &nbsp;·&nbsp; [**🔧 How It Works**](#-how-it-works)
+[**📖 Step-by-Step Guide**](HOW_TO.md) &nbsp;·&nbsp; [**⚡ Quick Start**](#-quick-start) &nbsp;·&nbsp; [**🌐 Providers**](#-supported-providers) &nbsp;·&nbsp; [**🔧 How It Works**](#-how-it-works) &nbsp;·&nbsp; [**🩺 Troubleshooting**](TROUBLESHOOTING.md)
 
 <br/>
 
@@ -53,7 +53,7 @@ Your Claude Code experience stays **exactly the same**. You just choose which br
 ```batch
 git clone https://github.com/inY2K/OpenClaude.git
 cd OpenClaude
-setup.bat
+StartOpenClaude.bat
 ```
 
 The setup wizard opens automatically and walks you through everything.
@@ -67,7 +67,7 @@ After setup, just type `openclaude` in any terminal to launch.
 ```bash
 git clone https://github.com/inY2K/OpenClaude.git
 cd OpenClaude
-chmod +x setup.sh && ./setup.sh
+chmod +x StartOpenClaude.sh && ./StartOpenClaude.sh
 ```
 
 The setup wizard opens automatically and walks you through everything.
@@ -76,6 +76,61 @@ After setup, just type `openclaude` in any terminal to launch.
 </details>
 
 > 📖 **Need more detail?** The [**HOW_TO.md**](HOW_TO.md) guide covers every step, every provider, and every common question — with clear screenshots descriptions.
+
+---
+
+## 🖼️ Screenshots
+
+<table>
+<tr>
+<td align="center" width="50%">
+
+**Welcome Screen**
+
+<img src="screenshots/Welcome.PNG" alt="OpenClaude welcome screen" width="100%"/>
+
+*The main menu — launch, manage providers, or run setup*
+
+</td>
+<td align="center" width="50%">
+
+**First-Time Setup**
+
+<img src="screenshots/SetUp.png" alt="OpenClaude setup wizard" width="100%"/>
+
+*The guided setup wizard walks you through everything*
+
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+
+**Adding a New Provider**
+
+<img src="screenshots/AddNewProvider.png" alt="Adding a new provider" width="100%"/>
+
+*Presets for all major providers — or enter your own URL*
+
+</td>
+<td align="center" width="50%">
+
+**All Done!**
+
+<img src="screenshots/AllDone.png" alt="Setup complete" width="100%"/>
+
+*Setup complete — ready to launch Claude Code*
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+**Claude Code running with your provider**
+
+<img src="screenshots/StartOpenClaude.png" alt="OpenClaude running Claude Code" width="80%"/>
+
+</div>
 
 ---
 
@@ -113,11 +168,15 @@ OpenClaude works with **any** provider that speaks either of these two formats:
 | **DeepSeek** | Anthropic-compat | Yes | Very low cost, high quality |
 | **OpenRouter** | Anthropic-compat | Yes | 300+ models, one key |
 | **Fireworks AI** | Anthropic-compat | Yes | Fast US-based inference |
+| **SiliconFlow** | OpenAI-compat | Yes | DeepSeek, Qwen, Kimi at low cost |
+| **Groq** | OpenAI-compat | Yes | Fastest inference available |
 | **Ollama** | OpenAI-compat | No — free | Llama, Mistral, Gemma locally |
 | **LM Studio** | OpenAI-compat | No — free | Local models with a GUI |
 | **Custom** | Your choice | Optional | Any URL, any format |
 
-> Works with **Groq**, **Together AI**, **Mistral**, **Cohere**, **Perplexity**, **Anyscale**, and any other OpenAI-compatible service.
+> Works with **Together AI**, **Mistral**, **Cohere**, **Perplexity**, and any other OpenAI or Anthropic-compatible service.
+>
+> 🩺 **Having trouble?** See the [**Troubleshooting Guide**](TROUBLESHOOTING.md) for solutions to the most common problems — including a complete provider reference table.
 
 ---
 
@@ -243,6 +302,7 @@ Just clone the repo and run. That's it.
 | Document | What's inside |
 |----------|--------------|
 | [**HOW_TO.md**](HOW_TO.md) | Complete guide: setup, providers, troubleshooting, FAQ |
+| [**TROUBLESHOOTING.md**](TROUBLESHOOTING.md) | Common errors, provider reference table, API format guide |
 | [**proxy/README.md**](proxy/README.md) | Technical proxy docs: API endpoints, format translation, advanced use |
 
 ---

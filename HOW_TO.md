@@ -27,6 +27,8 @@
    - [Ollama — Free Local Models](#ollama--free-local-models-no-api-key-needed)
    - [LM Studio — Local Models with a GUI](#lm-studio--local-models-with-a-gui)
    - [OpenRouter — 300+ models, one key](#openrouter--300-models-one-key)
+   - [SiliconFlow — Affordable Chinese & International Models](#siliconflow--affordable-chinese--international-models)
+   - [Groq — Fastest Inference Available](#groq--fastest-inference-available)
    - [Any Other Provider](#any-other-provider)
 5. [Running OpenClaude](#5-running-openclaude)
 6. [Managing Your Providers](#6-managing-your-providers)
@@ -96,7 +98,7 @@ git clone https://github.com/inY2K/OpenClaude.git
 cd OpenClaude
 
 # Step 3: Run setup
-setup.bat
+StartOpenClaude.bat
 ```
 
 > 💡 **Tip:** If PowerShell asks "Do you want to allow this app to make changes?" — click **Yes**.
@@ -117,7 +119,7 @@ git clone https://github.com/inY2K/OpenClaude.git
 cd OpenClaude
 
 # Step 3: Make the script runnable, then run it
-chmod +x setup.sh && ./setup.sh
+chmod +x StartOpenClaude.sh && ./StartOpenClaude.sh
 ```
 
 The setup wizard will open and guide you through the rest.
@@ -131,14 +133,14 @@ Open a terminal and run:
 ```bash
 git clone https://github.com/inY2K/OpenClaude.git
 cd OpenClaude
-chmod +x setup.sh && ./setup.sh
+chmod +x StartOpenClaude.sh && ./StartOpenClaude.sh
 ```
 
 ---
 
 ## 3. First-Time Setup Wizard
 
-When you run `setup.bat` (Windows) or `./setup.sh` (Mac/Linux), a colourful setup wizard opens.
+When you run `StartOpenClaude.bat` (Windows) or `./StartOpenClaude.sh` (Mac/Linux), a colourful setup wizard opens.
 
 Here's exactly what it asks and what to answer:
 
@@ -407,19 +409,85 @@ OpenRouter gives you access to hundreds of models (GPT-4o, Claude, Llama, Gemini
 
 ---
 
+### SiliconFlow — Affordable Chinese & International Models
+
+SiliconFlow provides access to top models (DeepSeek, Qwen, Kimi…) at very competitive prices.
+
+**Get an API key:**
+1. Go to [siliconflow.cn](https://siliconflow.cn) and sign up
+2. Go to **API Keys** in your account dashboard → create a key
+
+**Setup answers:**
+| Question | Answer |
+|----------|--------|
+| Preset | `7` (Custom) |
+| Provider name | `SiliconFlow` |
+| Alias | `sf` |
+| Endpoint URL | `https://api.siliconflow.com/v1` |
+| Format | `2` (OpenAI-compat) |
+| Auth | `1` (Bearer token) |
+| API key | Paste your SiliconFlow key |
+| Model | `deepseek-ai/DeepSeek-V4-Pro` |
+
+**Recommended models:**
+- `deepseek-ai/DeepSeek-V4-Pro` — best quality reasoning
+- `deepseek-ai/DeepSeek-V4-Flash` — fast and cheap (great for Haiku tier)
+- `Qwen/Qwen3-235B-A22B` — Alibaba's powerful model
+- `moonshotai/Kimi-K2.6` — great for long contexts
+
+> ⚠️ **Important:** Always use **OpenAI-compatible format** (`2`) for SiliconFlow — not Anthropic-compat.
+
+---
+
+### Groq — Fastest Inference Available
+
+Groq's custom hardware runs models at extremely high speed — great for Haiku/Subagent tiers.
+
+**Get an API key:**
+1. Go to [console.groq.com](https://console.groq.com)
+2. Sign up (free tier available) → **API Keys** → **Create API Key**
+
+**Setup answers:**
+| Question | Answer |
+|----------|--------|
+| Preset | `7` (Custom) |
+| Endpoint URL | `https://api.groq.com/openai/v1` |
+| Format | `2` (OpenAI-compat) |
+| Auth | `1` (Bearer token) |
+| Model | `llama-3.3-70b-versatile` or `moonshotai/kimi-k1.5-32k` |
+
+---
+
 ### Any Other Provider
 
-If your provider isn't listed, use the **Custom** preset (`7`):
+If your provider isn't listed, use the **Custom** preset (`7`). Here's the complete reference table:
 
-**Common OpenAI-compatible providers:**
+| Provider | Endpoint URL | Format | Auth type | API key starts with |
+|----------|-------------|--------|-----------|---------------------|
+| **OpenAI** | `https://api.openai.com/v1` | OpenAI-compat | Bearer | `sk-` |
+| **Anthropic** | `https://api.anthropic.com` | Anthropic-compat | x-api-key | `sk-ant-` |
+| **DeepSeek** | `https://api.deepseek.com/anthropic` | Anthropic-compat | x-api-key | `sk-` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Anthropic-compat | Bearer | `sk-or-` |
+| **Fireworks AI** | `https://api.fireworks.ai/inference/v1` | Anthropic-compat | Bearer | `fw_` |
+| **SiliconFlow** | `https://api.siliconflow.com/v1` | OpenAI-compat | Bearer | `sk-` |
+| **Groq** | `https://api.groq.com/openai/v1` | OpenAI-compat | Bearer | `gsk_` |
+| **Together AI** | `https://api.together.xyz/v1` | OpenAI-compat | Bearer | any |
+| **Mistral AI** | `https://api.mistral.ai/v1` | OpenAI-compat | Bearer | any |
+| **Perplexity** | `https://api.perplexity.ai` | OpenAI-compat | Bearer | `pplx-` |
+| **Ollama (local)** | `http://localhost:11434/v1` | OpenAI-compat | None | *(no key)* |
+| **LM Studio (local)** | `http://localhost:1234/v1` | OpenAI-compat | None | *(no key)* |
 
-| Provider | Endpoint URL | Format | Auth |
-|----------|-------------|--------|------|
-| Groq | `https://api.groq.com/openai/v1` | OpenAI | Bearer |
-| Together AI | `https://api.together.xyz/v1` | OpenAI | Bearer |
-| Mistral AI | `https://api.mistral.ai/v1` | OpenAI | Bearer |
-| Perplexity | `https://api.perplexity.ai` | OpenAI | Bearer |
-| Anyscale | `https://api.endpoints.anyscale.com/v1` | OpenAI | Bearer |
+**Not sure which format your provider uses?**
+
+- If the provider's docs show `POST /v1/messages` → it's **Anthropic-compatible**
+- If the provider's docs show `POST /v1/chat/completions` → it's **OpenAI-compatible**
+- If unsure, try **OpenAI-compatible** first — it's more common
+
+**Not sure which auth type?**
+
+- If the docs say `Authorization: Bearer <key>` → choose **Bearer token**
+- If the docs say `x-api-key: <key>` in the headers → choose **x-api-key**
+- For local models with no account → choose **None**
 
 ---
 

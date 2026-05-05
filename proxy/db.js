@@ -1,7 +1,7 @@
 /**
  * SQLite database interface for OpenClaude provider configuration.
  * Uses Node.js built-in node:sqlite (available in Node.js 22.5+).
- * Schema now supports flexible provider options (inspired by Kilo config).
+ * Schema supports flexible provider options.
  * DB stored at: ~/.openclaude/config.db
  */
 
@@ -58,9 +58,49 @@ function _initSchema(db) {
             name         TEXT,
             cost         TEXT,
             limits       TEXT,
-            UNIQUE(provider_id, model_id)
+            UNIQUE(provider_id, tier)
         );
     `);
+
+    migrateModelsUniqueConstraint(db);
+}
+
+function migrateModelsUniqueConstraint(db) {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='models'").get();
+    const modelsSql = String(row?.sql || '');
+    if (!modelsSql.includes('UNIQUE(provider_id, model_id)')) return;
+
+    console.log('Migrating models table constraint to UNIQUE(provider_id, tier)...');
+    db.exec('BEGIN');
+    try {
+        db.exec(`
+            CREATE TABLE models_new (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id  INTEGER NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+                model_id     TEXT NOT NULL,
+                tier         TEXT NOT NULL,
+                name         TEXT,
+                cost         TEXT,
+                limits       TEXT,
+                UNIQUE(provider_id, tier)
+            );
+        `);
+
+        db.exec(`
+            INSERT INTO models_new (provider_id, model_id, tier, name, cost, limits)
+            SELECT provider_id, model_id, tier, name, cost, limits
+            FROM models
+            ORDER BY id ASC
+        `);
+
+        db.exec('DROP TABLE models');
+        db.exec('ALTER TABLE models_new RENAME TO models');
+        db.exec('COMMIT');
+        console.log('Models table migration complete');
+    } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+    }
 }
 
 function migrateOldSchema(db) {
@@ -123,7 +163,7 @@ function migrateOldSchema(db) {
             name         TEXT,
             cost         TEXT,
             limits       TEXT,
-            UNIQUE(provider_id, model_id)
+            UNIQUE(provider_id, tier)
         );
     `);
 

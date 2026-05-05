@@ -103,6 +103,34 @@ function Assert-Deps {
     }
 }
 
+function Test-ProxyAnthropicCompatibility([int]$Port, [string]$Model) {
+    try {
+        $body = @{
+            model = $Model
+            system = "You are a helpful assistant."
+            messages = @(
+                @{
+                    role = "user"
+                    content = @(
+                        @{ type = "text"; text = "ping" }
+                    )
+                }
+            )
+        } | ConvertTo-Json -Depth 8
+
+        $resp = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/v1/messages/count_tokens" `
+            -Method Post `
+            -Headers @{ "x-api-key" = "openclaude-proxy"; "anthropic-version" = "2023-06-01" } `
+            -ContentType "application/json" `
+            -Body $body `
+            -TimeoutSec 10
+
+        return ($null -ne $resp -and $null -ne $resp.input_tokens)
+    } catch {
+        return $false
+    }
+}
+
 # --------------------------------------------------------------------------
 # Help
 # --------------------------------------------------------------------------
@@ -210,6 +238,8 @@ $opusModel     = Get-ModelForTier $provider "opus"
 $sonnetModel   = Get-ModelForTier $provider "sonnet"
 $haikuModel    = Get-ModelForTier $provider "haiku"
 $subagentModel = Get-ModelForTier $provider "subagent"
+$useProxy = ($provider.api_format -eq 'openai') -or $provider.force_proxy
+$effortLevel = if ($provider.force_proxy -and $provider.api_format -eq 'anthropic') { $null } else { 'max' }
 
 # --------------------------------------------------------------------------
 # Remote control
@@ -220,10 +250,11 @@ if ($Remote) {
     if ($Switch) { $proxyArgs += '--alias'; $proxyArgs += $Switch }
 
     $tmpFile = [System.IO.Path]::GetTempFileName()
-    $proxyProc = Start-Process -FilePath "node" -ArgumentList $proxyArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $tmpFile
+    $tmpErr = [System.IO.Path]::GetTempFileName()
+    $proxyProc = Start-Process -FilePath "node" -ArgumentList $proxyArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $tmpFile -RedirectStandardError $tmpErr
 
     $tries = 0
-    while ($tries -lt 40) {
+    while ($tries -lt 100) {
         Start-Sleep -Milliseconds 200; $tries++
         $content = Get-Content $tmpFile -ErrorAction SilentlyContinue
         $portLine = $content | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1
@@ -232,9 +263,15 @@ if ($Remote) {
 
     $proxyPort = ($content | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
     Remove-Item $tmpFile -ErrorAction SilentlyContinue
+    $stderrLines = Get-Content $tmpErr -ErrorAction SilentlyContinue
+    Remove-Item $tmpErr -ErrorAction SilentlyContinue
 
     if (-not $proxyPort) {
         Write-Host "  ERROR: Proxy failed to start" -ForegroundColor Red
+        if ($stderrLines) {
+            Write-Host "  Proxy error output:" -ForegroundColor Yellow
+            $stderrLines | Select-Object -Last 8 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        }
         if ($proxyProc -and -not $proxyProc.HasExited) { Stop-Process -Id $proxyProc.Id -Force }
         exit 1
     }
@@ -249,7 +286,11 @@ if ($Remote) {
     $env:ANTHROPIC_DEFAULT_SONNET_MODEL  = $sonnetModel
     $env:ANTHROPIC_DEFAULT_HAIKU_MODEL   = $haikuModel
     $env:CLAUDE_CODE_SUBAGENT_MODEL      = $subagentModel
-    $env:CLAUDE_CODE_EFFORT_LEVEL        = "max"
+    if ($effortLevel) {
+        $env:CLAUDE_CODE_EFFORT_LEVEL    = $effortLevel
+    } else {
+        Remove-Item Env:CLAUDE_CODE_EFFORT_LEVEL -ErrorAction SilentlyContinue
+    }
     Remove-Item Env:ANTHROPIC_API_KEY    -ErrorAction SilentlyContinue
     Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue
 
@@ -275,17 +316,18 @@ Write-Host "  Opus:     $opusModel" -ForegroundColor DarkGray
 Write-Host "  Haiku:    $haikuModel" -ForegroundColor DarkGray
 Write-Host ""
 
-if ($provider.api_format -eq 'openai') {
+if ($useProxy) {
     # OpenAI-format providers must go through the proxy for translation
     $proxyScript = Join-Path $ScriptDir "proxy\start-proxy.js"
     $proxyArgs = @($proxyScript)
     if ($Switch) { $proxyArgs += '--alias'; $proxyArgs += $Switch }
 
     $tmpFile = [System.IO.Path]::GetTempFileName()
-    $proxyProc = Start-Process -FilePath "node" -ArgumentList $proxyArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $tmpFile
+    $tmpErr = [System.IO.Path]::GetTempFileName()
+    $proxyProc = Start-Process -FilePath "node" -ArgumentList $proxyArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $tmpFile -RedirectStandardError $tmpErr
 
     $tries = 0
-    while ($tries -lt 40) {
+    while ($tries -lt 100) {
         Start-Sleep -Milliseconds 200; $tries++
         $content = Get-Content $tmpFile -ErrorAction SilentlyContinue
         $portLine = $content | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1
@@ -293,22 +335,42 @@ if ($provider.api_format -eq 'openai') {
     }
     $proxyPort = ($content | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
     Remove-Item $tmpFile -ErrorAction SilentlyContinue
+    $stderrLines = Get-Content $tmpErr -ErrorAction SilentlyContinue
+    Remove-Item $tmpErr -ErrorAction SilentlyContinue
 
     if (-not $proxyPort) {
         Write-Host "  ERROR: Proxy failed to start" -ForegroundColor Red
+        if ($stderrLines) {
+            Write-Host "  Proxy error output:" -ForegroundColor Yellow
+            $stderrLines | Select-Object -Last 8 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        }
         if ($proxyProc -and -not $proxyProc.HasExited) { Stop-Process -Id $proxyProc.Id -Force }
         exit 1
     }
 
-    Write-Host "  Proxy on :$proxyPort (OpenAI->Anthropic translation)" -ForegroundColor DarkGray
+    $proxyLabel = if ($provider.api_format -eq 'openai') { 'OpenAI->Anthropic translation' } else { 'Anthropic compatibility shim' }
+    Write-Host "  Proxy on :$proxyPort ($proxyLabel)" -ForegroundColor DarkGray
     Write-Host ""
+
+    if (-not (Test-ProxyAnthropicCompatibility -Port ([int]$proxyPort) -Model $opusModel)) {
+        Write-Host "  ERROR: Proxy preflight failed. count_tokens response did not include input_tokens." -ForegroundColor Red
+        if ($proxyProc -and -not $proxyProc.HasExited) {
+            Stop-Process -Id $proxyProc.Id -Force -ErrorAction SilentlyContinue
+        }
+        exit 1
+    }
+
     $env:ANTHROPIC_BASE_URL              = "http://127.0.0.1:$proxyPort"
     $env:ANTHROPIC_AUTH_TOKEN            = "openclaude-proxy"
     $env:ANTHROPIC_DEFAULT_OPUS_MODEL    = $opusModel
     $env:ANTHROPIC_DEFAULT_SONNET_MODEL  = $sonnetModel
     $env:ANTHROPIC_DEFAULT_HAIKU_MODEL   = $haikuModel
     $env:CLAUDE_CODE_SUBAGENT_MODEL      = $subagentModel
-    $env:CLAUDE_CODE_EFFORT_LEVEL        = "max"
+    if ($effortLevel) {
+        $env:CLAUDE_CODE_EFFORT_LEVEL    = $effortLevel
+    } else {
+        Remove-Item Env:CLAUDE_CODE_EFFORT_LEVEL -ErrorAction SilentlyContinue
+    }
     Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
 
     try {
@@ -332,7 +394,11 @@ if ($provider.api_format -eq 'openai') {
     $env:ANTHROPIC_DEFAULT_SONNET_MODEL  = $sonnetModel
     $env:ANTHROPIC_DEFAULT_HAIKU_MODEL   = $haikuModel
     $env:CLAUDE_CODE_SUBAGENT_MODEL      = $subagentModel
-    $env:CLAUDE_CODE_EFFORT_LEVEL        = "max"
+    if ($effortLevel) {
+        $env:CLAUDE_CODE_EFFORT_LEVEL    = $effortLevel
+    } else {
+        Remove-Item Env:CLAUDE_CODE_EFFORT_LEVEL -ErrorAction SilentlyContinue
+    }
     Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
 
     & $script:ClaudeExe @Args

@@ -8,6 +8,7 @@ import { appendFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { brotliDecompressSync, gunzipSync, inflateSync } from 'zlib';
+import { createBrotliDecompress, createGunzip, createInflate } from 'zlib';
 import { buildOpenAIPath } from './provider-url.js';
 
 const LOG_FILE = join(homedir(), '.openclaude', 'translate-debug.log');
@@ -17,7 +18,104 @@ function debugLog(msg) {
 
 const ANTHROPIC_FALLBACK = 'https://api.anthropic.com';
 const MODEL_PATHS = ['/v1/messages'];
+const COUNT_TOKENS_PATH = '/v1/messages/count_tokens';
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+
+function collectTextParts(value, out = []) {
+    if (typeof value === 'string') {
+        out.push(value);
+        return out;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value) collectTextParts(item, out);
+        return out;
+    }
+    if (!value || typeof value !== 'object') return out;
+
+    if (typeof value.text === 'string') out.push(value.text);
+    if (typeof value.content === 'string' || Array.isArray(value.content) || (value.content && typeof value.content === 'object')) {
+        collectTextParts(value.content, out);
+    }
+    if (typeof value.name === 'string') out.push(value.name);
+    if (typeof value.description === 'string') out.push(value.description);
+    if (value.input_schema) collectTextParts(value.input_schema, out);
+    if (value.input) collectTextParts(value.input, out);
+    return out;
+}
+
+function estimateInputTokensFromAnthropic(body) {
+    try {
+        const req = JSON.parse(body.toString());
+        const text = [
+            ...collectTextParts(req.system),
+            ...collectTextParts(req.messages),
+            ...collectTextParts(req.tools),
+            ...collectTextParts(req.tool_choice),
+        ].join('\n');
+
+        if (!text.trim()) return 0;
+
+        // Cheap fallback for providers without a native count-tokens endpoint.
+        // OpenAI-style tokenization is close enough for sizing and avoids client crashes.
+        return Math.max(1, Math.ceil(text.length / 4));
+    } catch {
+        return 0;
+    }
+}
+
+function normalizeAnthropicBodyForProvider(body, state) {
+    // SiliconFlow Anthropic endpoint rejects requests that combine
+    // thinking.type=disabled with reasoning_effort.
+    if (!state?.options?.force_proxy || state?.api_format !== 'anthropic') return body;
+
+    let parsed;
+    try {
+        parsed = JSON.parse(body.toString());
+    } catch {
+        return body;
+    }
+
+    const thinkingType = parsed?.thinking?.type;
+    if (thinkingType === 'disabled' && parsed.reasoning_effort != null) {
+        delete parsed.reasoning_effort;
+    }
+
+    if (Array.isArray(parsed.stop_sequences)) {
+        parsed.stop_sequences = parsed.stop_sequences.filter(s => typeof s === 'string' && s.length > 0);
+    }
+    if (Array.isArray(parsed.stop)) {
+        parsed.stop = parsed.stop.filter(s => typeof s === 'string' && s.length > 0);
+    } else if (typeof parsed.stop === 'string' && parsed.stop.length === 0) {
+        delete parsed.stop;
+    }
+
+    return Buffer.from(JSON.stringify(parsed));
+}
+
+function normalizeOpenAIBodyForProvider(body, state) {
+    let parsed;
+    try {
+        parsed = JSON.parse(body.toString());
+    } catch {
+        return body;
+    }
+
+    const host = (state?.target?.hostname || '').toLowerCase();
+    if (host.includes('siliconflow.com')) {
+        // SiliconFlow may require reasoning_content carry-forward when thinking mode is enabled.
+        // Disable thinking mode for Claude Code compatibility.
+        parsed.enable_thinking = false;
+        if (parsed.reasoning_effort != null) delete parsed.reasoning_effort;
+    }
+
+    if (Array.isArray(parsed.stop)) {
+        parsed.stop = parsed.stop.filter(s => typeof s === 'string' && s.length > 0);
+    } else if (typeof parsed.stop === 'string' && parsed.stop.length === 0) {
+        delete parsed.stop;
+    }
+
+    return Buffer.from(JSON.stringify(parsed));
+}
 
 /**
  * Intercepts SSE events and injects missing `usage` fields.
@@ -58,8 +156,12 @@ class UsageNormalizer extends Transform {
             if (d.type === 'message_delta') {
                 if (d.usage) {
                     this._outputTokens = d.usage.output_tokens || 0;
+                    if (d.usage.input_tokens == null) {
+                        d.usage.input_tokens = this._inputTokens;
+                        changed = true;
+                    }
                 } else {
-                    d.usage = { output_tokens: 0 };
+                    d.usage = { input_tokens: this._inputTokens, output_tokens: 0 };
                     changed = true;
                 }
             }
@@ -96,6 +198,14 @@ function decodeResponseBody(buf, encoding) {
         return buf;
     }
     return buf;
+}
+
+function getDecompressionStream(encoding) {
+    const normalized = (encoding || '').toLowerCase();
+    if (normalized.includes('br')) return createBrotliDecompress();
+    if (normalized.includes('gzip')) return createGunzip();
+    if (normalized.includes('deflate')) return createInflate();
+    return null;
 }
 
 function buildHeaders(state, clientHeaders, body) {
@@ -258,8 +368,20 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
 
             // ── Proxy logic ────────────────────────────────────────────────
             const isAnthropicMode = state.mode === 'anthropic';
+            const isCountTokensCall = !isAnthropicMode && urlPath === COUNT_TOKENS_PATH;
             const isModelCall = !isAnthropicMode && MODEL_PATHS.includes(urlPath);
             const dest = isModelCall ? state.target : new URL(ANTHROPIC_FALLBACK);
+
+            if (isCountTokensCall) {
+                const clientChunks = [];
+                clientReq.on('data', c => clientChunks.push(c));
+                clientReq.on('end', () => {
+                    const input_tokens = estimateInputTokensFromAnthropic(Buffer.concat(clientChunks));
+                    clientRes.writeHead(200, { 'content-type': 'application/json' });
+                    clientRes.end(JSON.stringify({ input_tokens }));
+                });
+                return;
+            }
 
             // Build upstream path (handle /v1 prefix dedup)
             let fullPath;
@@ -305,6 +427,7 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
                             const toolSnip = JSON.stringify(outgoing.tools[0]).substring(0, 300);
                             debugLog(`TOOL[0]: ${toolSnip}`);
                         }
+                        body = normalizeOpenAIBodyForProvider(body, state);
                         debugLog(`BODY_LENGTH: ${body.length} bytes`);
                     } catch (e) {
                         console.error(`[PROXY] #${reqId} Translation error: ${e.message}`);
@@ -312,6 +435,7 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
                     }
                 } else if (isModelCall) {
                     try { requestedModel = JSON.parse(body.toString()).model || ''; } catch {}
+                    body = normalizeAnthropicBodyForProvider(body, state);
                 }
 
                 const headers = buildHeaders(state, clientReq.headers, body);
@@ -356,6 +480,9 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
                     const isJSON = ct.includes('application/json');
 
                     if (isModelCall && isSSE) {
+                        const decoding = getDecompressionStream(proxyRes.headers['content-encoding']);
+                        const sourceStream = decoding ? proxyRes.pipe(decoding) : proxyRes;
+
                         if (state.api_format === 'openai') {
                             // Translate OpenAI SSE → Anthropic SSE
                             const outHeaders = {
@@ -364,20 +491,24 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
                                 'cache-control': 'no-cache',
                             };
                             delete outHeaders['content-encoding'];
+                            delete outHeaders['content-length'];
                             clientRes.writeHead(proxyRes.statusCode, outHeaders);
                             const translator = new OpenAIToAnthropicStream(
                                 requestedModel,
                                 (inp, out) => recordUsage(state.mode, inp, out)
                             );
-                            proxyRes.pipe(translator).pipe(clientRes);
+                            sourceStream.pipe(translator).pipe(clientRes);
                             proxyRes.on('end', () => {
                                 console.log(`[PROXY] #${reqId} done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
                             });
                         } else {
                             // Anthropic format — normalize usage fields
-                            clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+                            const outHeaders = { ...proxyRes.headers };
+                            delete outHeaders['content-encoding'];
+                            delete outHeaders['content-length'];
+                            clientRes.writeHead(proxyRes.statusCode, outHeaders);
                             const norm = new UsageNormalizer((inp, out) => recordUsage(state.mode, inp, out));
-                            proxyRes.pipe(norm).pipe(clientRes);
+                            sourceStream.pipe(norm).pipe(clientRes);
                             proxyRes.on('end', () => {
                                 console.log(`[PROXY] #${reqId} done in ${((Date.now() - t0) / 1000).toFixed(1)}s (${norm._inputTokens}in/${norm._outputTokens}out)`);
                             });
@@ -403,6 +534,7 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
                             } catch {}
                             const outHeaders = { ...proxyRes.headers, 'content-length': raw.length };
                             delete outHeaders['content-encoding'];
+                            delete outHeaders['transfer-encoding'];
                             clientRes.writeHead(proxyRes.statusCode, outHeaders);
                             clientRes.end(raw);
                             console.log(`[PROXY] #${reqId} done in ${((Date.now() - t0) / 1000).toFixed(1)}s (json, ${raw.length}b)`);
@@ -435,10 +567,18 @@ export function startModelProxy({ targetUrl, apiKey, startPort = 3200, backends,
             });
         });
 
-        function tryListen(port) {
+        function tryListen(port, allowEphemeralFallback = true) {
             server.once('error', (err) => {
-                if (err.code === 'EADDRINUSE' && port < startPort + 20) tryListen(port + 1);
-                else reject(err);
+                if (err.code === 'EADDRINUSE' && port < startPort + 20) {
+                    tryListen(port + 1, allowEphemeralFallback);
+                    return;
+                }
+                if (err.code === 'EADDRINUSE' && allowEphemeralFallback) {
+                    // If the default scan range is occupied, let the OS pick a free local port.
+                    tryListen(0, false);
+                    return;
+                }
+                reject(err);
             });
             server.listen(port, '127.0.0.1', () => {
                 const actualPort = server.address().port;

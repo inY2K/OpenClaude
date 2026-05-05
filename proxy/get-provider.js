@@ -22,6 +22,7 @@ if (!p) {
         base_url: p.base_url,
         api_key: p.options?.apiKey || null,
         auth_type: p.options?.auth_type || 'bearer',
+        force_proxy: !!p.options?.force_proxy,
         models: p.models.map(m => ({
             tier: m.tier,
             model_name: m.model_id,  // for backward compat

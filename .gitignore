@@ -1,0 +1,21 @@
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
+# SQLite database (contains API keys — never commit!)
+*.db
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Node.js
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*

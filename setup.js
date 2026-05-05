@@ -6,7 +6,8 @@
 
 import { createInterface } from 'readline';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
+import { spawnSync } from 'child_process';
 import { probeProvider } from './proxy/provider-probe.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -33,11 +34,35 @@ const c = (color, text) => `${C[color]}${text}${C.reset}`;
 const bold = t => `${C.bold}${t}${C.reset}`;
 const dim = t => `${C.dim}${t}${C.reset}`;
 
+function shouldForceProxy(baseUrl, apiType) {
+    try {
+        const host = new URL(baseUrl).hostname.toLowerCase();
+        return apiType === 'anthropic' && host.includes('siliconflow.com');
+    } catch {
+        return false;
+    }
+}
+
 // ─── Readline helpers ────────────────────────────────────────────────────────
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
 function ask(prompt) {
-    return new Promise(resolve => rl.question(prompt, a => resolve(a.trim())));
+    return new Promise(resolve => {
+        let settled = false;
+        const onClose = () => {
+            if (settled) return;
+            settled = true;
+            resolve('q');
+        };
+
+        rl.once('close', onClose);
+        rl.question(prompt, a => {
+            if (settled) return;
+            settled = true;
+            rl.removeListener('close', onClose);
+            resolve((a || '').trim());
+        });
+    });
 }
 
 async function askDefault(prompt, def) {
@@ -85,6 +110,35 @@ async function askDiscoveredModel(prompt, models, def) {
     }
 }
 
+function modelMapFromProvider(provider) {
+    const map = {};
+    for (const m of (provider?.models || [])) {
+        if (m?.tier && m?.model_id && !map[m.tier]) map[m.tier] = m.model_id;
+    }
+    return map;
+}
+
+function launchOpenClaude(alias) {
+    const script = process.platform === 'win32' ? join(__dir, 'openclaude.ps1') : join(__dir, 'openclaude.sh');
+    const args = process.platform === 'win32'
+        ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '--switch', alias]
+        : [script, '--switch', alias];
+    const cmd = process.platform === 'win32' ? 'powershell' : 'bash';
+
+    console.log('');
+    info(`Starting OpenClaude with provider alias: ${alias}`);
+    console.log('');
+    rl.close();
+
+    const child = spawnSync(cmd, args, {
+        cwd: __dir,
+        stdio: 'inherit',
+        env: process.env,
+    });
+
+    process.exit(child.status ?? 1);
+}
+
 // ─── UI components ───────────────────────────────────────────────────────────
 function banner() {
     console.log('');
@@ -128,31 +182,51 @@ const PROVIDER_PRESETS = {
     '7': { name: 'Custom',        base_url: '',                              api_type: 'openai',  auth: 'bearer', models: {} },
 };
 
-async function addProviderWizard(isFirst = false) {
-    section(isFirst ? 'Add Your First Provider' : 'Add New Provider');
+async function addProviderWizard(isFirst = false, existingProvider = null) {
+    const isEdit = !!existingProvider;
+    section(isEdit ? `Edit Provider (${existingProvider.alias})` : (isFirst ? 'Add Your First Provider' : 'Add New Provider'));
 
-    console.log('  Choose a preset or customize:\n');
-    for (const [k, p] of Object.entries(PROVIDER_PRESETS)) {
-        const fmt = p.api_type === 'openai' ? c('blue', 'OpenAI-compat') : c('magenta', 'Anthropic-compat');
-        console.log(`  ${c('yellow', `[${k}]`)} ${bold(p.name)} ${dim(p.base_url ? `— ${p.base_url}` : '— enter your own')}  ${fmt}`);
+    let preset;
+    const existingModels = modelMapFromProvider(existingProvider);
+
+    if (isEdit) {
+        preset = {
+            name: existingProvider.name,
+            base_url: existingProvider.base_url,
+            api_type: existingProvider.api_type,
+            auth: existingProvider.options?.auth_type || (existingProvider.options?.apiKey ? 'bearer' : 'none'),
+            models: {
+                opus: existingModels.opus || 'gpt-4o',
+                sonnet: existingModels.sonnet || existingModels.opus || 'gpt-4o-mini',
+                haiku: existingModels.haiku || existingModels.opus || 'gpt-4o-mini',
+                subagent: existingModels.subagent || existingModels.opus || 'gpt-4o-mini',
+            },
+        };
+    } else {
+        console.log('  Choose a preset or customize:\n');
+        for (const [k, p] of Object.entries(PROVIDER_PRESETS)) {
+            const fmt = p.api_type === 'openai' ? c('blue', 'OpenAI-compat') : c('magenta', 'Anthropic-compat');
+            console.log(`  ${c('yellow', `[${k}]`)} ${bold(p.name)} ${dim(p.base_url ? `— ${p.base_url}` : '— enter your own')}  ${fmt}`);
+        }
+        console.log('');
+
+        const choice = await askChoice('  Select preset', Object.keys(PROVIDER_PRESETS), '7');
+        preset = PROVIDER_PRESETS[choice];
     }
-    console.log('');
-
-    const choice = await askChoice('  Select preset', Object.keys(PROVIDER_PRESETS), '7');
-    const preset = PROVIDER_PRESETS[choice];
 
     console.log('');
 
     // Name
-    const name = await askDefault('  Provider display name', preset.name);
+    const name = await askDefault('  Provider display name', existingProvider?.name || preset.name);
 
     // Alias
-    const defaultAlias = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'custom';
+    const originalAlias = existingProvider?.alias || '';
+    const defaultAlias = originalAlias || (name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'custom');
     let alias = await askDefault('  Short alias (for --switch)', defaultAlias);
     alias = alias.replace(/[^a-z0-9_-]/g, '').slice(0, 20);
 
     // URL
-    const base_url = await askDefault('  API endpoint URL', preset.base_url || 'https://');
+    const base_url = await askDefault('  API endpoint URL', existingProvider?.base_url || preset.base_url || 'https://');
 
     // Format
     console.log('');
@@ -177,7 +251,12 @@ async function addProviderWizard(isFirst = false) {
     // API Key
     let apiKey = '';
     if (auth_type !== 'none') {
-        apiKey = await ask(`  API key ${dim('(input hidden in terminal)')}: `);
+        const currentKey = existingProvider?.options?.apiKey || '';
+        const promptText = isEdit && currentKey
+            ? `  API key ${dim('(leave blank to keep current)')}: `
+            : `  API key ${dim('(input hidden in terminal)')}: `;
+        const enteredKey = await ask(promptText);
+        apiKey = enteredKey || currentKey;
         if (!apiKey) warn('No API key entered — you can update this later.');
     } else {
         info('No API key needed for local models.');
@@ -227,37 +306,42 @@ async function addProviderWizard(isFirst = false) {
     let models = [];
     const tiers = ['opus', 'sonnet', 'haiku', 'subagent'];
 
+    const tierLabels = {
+        opus:     'Opus    (main, complex tasks)',
+        sonnet:   'Sonnet  (balanced)',
+        haiku:    'Haiku   (fast, light tasks)',
+        subagent: 'Subagent (background agents)',
+    };
+
     if (discoveredModels.length && modelChoice === '1') {
-        const m = await askDiscoveredModel('  Model name', discoveredModels, discoveredModels[0]);
+        console.log('');
+        console.log('  Available models:');
+        printDiscoveredModels(discoveredModels);
+        console.log('');
+        const def = existingModels.opus || discoveredModels[0];
+        const m = await askDiscoveredModel('  Model name (number or id)', discoveredModels, def);
         for (const t of tiers) {
             models.push({ model_id: m, tier: t, name: m });
         }
     } else if (discoveredModels.length && modelChoice === '2') {
-        const tierLabels = {
-            opus:     'Opus    (main, complex tasks)',
-            sonnet:   'Sonnet  (balanced)',
-            haiku:    'Haiku   (fast, light tasks)',
-            subagent: 'Subagent (background agents)',
-        };
         for (const t of tiers) {
-            const m = await askDiscoveredModel(`  ${tierLabels[t]}`, discoveredModels, discoveredModels[0]);
+            console.log('');
+            console.log('  Available models:');
+            printDiscoveredModels(discoveredModels);
+            console.log('');
+            const def = existingModels[t] || existingModels.opus || discoveredModels[0];
+            const m = await askDiscoveredModel(`  ${tierLabels[t]} (number or id)`, discoveredModels, def);
             models.push({ model_id: m, tier: t, name: m });
         }
     } else if (modelChoice === '1') {
-        const fallback = discoveredModels[0] || preset.models?.opus || 'gpt-4o';
+        const fallback = existingModels.opus || preset.models?.opus || 'gpt-4o';
         const m = await askDefault('  Model name', fallback);
         for (const t of tiers) {
             models.push({ model_id: m, tier: t, name: m });
         }
     } else {
-        const tierLabels = {
-            opus:     'Opus    (main, complex tasks)',
-            sonnet:   'Sonnet  (balanced)',
-            haiku:    'Haiku   (fast, light tasks)',
-            subagent: 'Subagent (background agents)',
-        };
         for (const t of tiers) {
-            const fallback = discoveredModels[0] || preset.models?.[t] || preset.models?.opus || '';
+            const fallback = existingModels[t] || preset.models?.[t] || preset.models?.opus || '';
             const m = await askDefault(`  ${tierLabels[t]}`, fallback);
             models.push({ model_id: m, tier: t, name: m });
         }
@@ -265,7 +349,8 @@ async function addProviderWizard(isFirst = false) {
 
     // Is default?
     const providers = getProviders();
-    const makeDefault = providers.length === 0 || await confirm('\n  Set as default provider?', 'y');
+    const defaultHint = existingProvider?.is_default ? 'y' : 'n';
+    const makeDefault = providers.length === 0 || await confirm('\n  Set as default provider?', defaultHint);
 
     // Save with new schema
     const options = { auth_type };
@@ -273,9 +358,15 @@ async function addProviderWizard(isFirst = false) {
     if (auth_type === 'bearer' || auth_type === 'x-api-key') {
         options.timeout = 30000;
     }
+    if (shouldForceProxy(base_url, api_type)) {
+        options.force_proxy = true;
+    }
 
     try {
         saveProvider({ alias, name, api_type, base_url, options, is_default: makeDefault, models });
+        if (isEdit && originalAlias && alias !== originalAlias) {
+            deleteProvider(originalAlias);
+        }
         console.log('');
         success(`Provider "${name}" saved!`);
         info(`Use it with: ${bold(`openclaude --switch ${alias}`)}`);
@@ -304,14 +395,16 @@ async function mainMenu() {
         console.log('');
         console.log(`  ${c('yellow', '[A]')} Add new provider`);
         if (providers.length > 0) {
+            console.log(`  ${c('yellow', '[E]')} Edit a provider`);
             console.log(`  ${c('yellow', '[D]')} Delete a provider`);
             console.log(`  ${c('yellow', '[X]')} Set default provider`);
+            console.log(`  ${c('yellow', '[L]')} Launch OpenClaude now`);
         }
         console.log(`  ${c('yellow', '[Q]')} Quit`);
         console.log('');
 
         const validChoices = ['a', 'q'];
-        if (providers.length > 0) validChoices.push('d', 'x');
+        if (providers.length > 0) validChoices.push('e', 'd', 'x', 'l');
 
         const choice = (await ask('  Choice: ')).toLowerCase();
 
@@ -319,6 +412,14 @@ async function mainMenu() {
 
         if (choice === 'a') {
             await addProviderWizard(false);
+        } else if (choice === 'e' && providers.length > 0) {
+            const num = await ask(`  Edit provider number [1-${providers.length}]: `);
+            const idx = parseInt(num) - 1;
+            if (idx >= 0 && idx < providers.length) {
+                await addProviderWizard(false, providers[idx]);
+            } else {
+                err('Invalid selection.');
+            }
         } else if (choice === 'd' && providers.length > 0) {
             const num = await ask(`  Delete provider number [1-${providers.length}]: `);
             const idx = parseInt(num) - 1;
@@ -338,6 +439,15 @@ async function mainMenu() {
                 const p = providers[idx];
                 setDefault(p.alias);
                 success(`"${p.name}" is now the default.`);
+            } else {
+                err('Invalid selection.');
+            }
+        } else if (choice === 'l' && providers.length > 0) {
+            const defaultIndex = Math.max(0, providers.findIndex(p => p.is_default));
+            const num = await askDefault(`  Launch with provider number [1-${providers.length}]`, String(defaultIndex + 1));
+            const idx = parseInt(num, 10) - 1;
+            if (idx >= 0 && idx < providers.length) {
+                launchOpenClaude(providers[idx].alias);
             } else {
                 err('Invalid selection.');
             }
