@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="assets/banner.svg" width="100%" alt="OpenClaude — Use Claude Code with any LLM provider"/>
+<a href="https://iny2k.github.io/">
+  <img src="assets/banner.svg" width="100%" alt="OpenClaude — Use Claude Code with any LLM provider"/>
+</a>
 
 <br/><br/>
 
@@ -8,6 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-818cf8?style=for-the-badge&logo=windows&logoColor=white)](HOW_TO.md)
 [![Zero Dependencies](https://img.shields.io/badge/Zero%20Dependencies-✦-22d3ee?style=for-the-badge)](#-zero-dependencies)
+[![GitHub Page](https://img.shields.io/badge/GitHub%20Page-Live-7c3aed?style=for-the-badge&logo=githubpages&logoColor=white)](https://iny2k.github.io/)
 
 <br/>
 
